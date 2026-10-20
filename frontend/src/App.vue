@@ -395,7 +395,7 @@ const configurationNotice = computed(() => {
   if (configurationApplyStatus.value === 'changed')
     return 'Configuration changed since last apply/run'
   if (configurationApplyStatus.value === 'unknown')
-    return 'Editor not compared with the boards: their configuration was applied outside this page'
+    return 'Editor not compared with the boards: their configuration was applied outside this page; select Apply config to be sure'
   return ''
 })
 const appliedConfigurationLabel = computed(() => {

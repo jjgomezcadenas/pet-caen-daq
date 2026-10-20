@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf'
 import { computed, onBeforeUnmount, readonly, ref } from 'vue'
 import type { DaqApi } from './api'
 import {
+  AppliedConfigurationSource,
   StartRunRequestSchema,
   StopRunRequestSchema,
   SystemState,
@@ -226,6 +227,7 @@ export function useDaq(api: DaqApi) {
     busy.value = true
     startingRun.value = true
     error.value = ''
+    const before = appliedConfigurationKey(snapshot.value?.appliedConfiguration)
     try {
       const valid = await validate(input.configuration)
       if (!valid) return
@@ -245,6 +247,7 @@ export function useDaq(api: DaqApi) {
       rememberApplied(input.configuration, result.snapshot)
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : String(reason)
+      await rememberAfterFailure(input.configuration, before, AppliedConfigurationSource.RUN)
     } finally {
       startingRun.value = false
       busy.value = false
@@ -254,6 +257,27 @@ export function useDaq(api: DaqApi) {
   function rememberApplied(configuration: string, next: TelemetrySnapshot | undefined) {
     const key = appliedConfigurationKey(next?.appliedConfiguration)
     lastApplied.value = key ? { text: configuration, key } : undefined
+  }
+
+  // A request can fail after the boards were written (an audit rejection).
+  // The backend then records the application in telemetry; recognise our own
+  // record so the page does not report it as applied elsewhere.
+  async function rememberAfterFailure(
+    configuration: string,
+    before: string,
+    source: AppliedConfigurationSource,
+  ) {
+    try {
+      const next = await api.snapshot()
+      const applied = next?.appliedConfiguration
+      const key = appliedConfigurationKey(applied)
+      if (!key || key === before) return
+      if (applied?.source !== source || applied.requestedBy !== operatorIdentity) return
+      accept(next)
+      rememberApplied(configuration, next)
+    } catch {
+      // The original command error remains the report shown to the operator.
+    }
   }
 
   function configurationStatus(configuration: string): ConfigurationApplyStatus {
@@ -267,6 +291,7 @@ export function useDaq(api: DaqApi) {
     busy.value = true
     applyingConfiguration.value = true
     error.value = ''
+    const before = appliedConfigurationKey(snapshot.value?.appliedConfiguration)
     try {
       const valid = await validate(configuration)
       if (!valid) return false
@@ -277,6 +302,7 @@ export function useDaq(api: DaqApi) {
       return true
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : String(reason)
+      await rememberAfterFailure(configuration, before, AppliedConfigurationSource.APPLY)
       return false
     } finally {
       applyingConfiguration.value = false

@@ -167,6 +167,59 @@ describe('useDaq', () => {
     second.wrapper.unmount()
   })
 
+  it('keeps tracking its own configuration when the audit rejects it after the write', async () => {
+    const afterWrite = create(TelemetrySnapshotSchema, {
+      state: SystemState.READY,
+      appliedConfiguration: {
+        appliedAt: { seconds: 1_800_000_100n, nanos: 0 },
+        requestedBy: 'operator',
+        source: AppliedConfigurationSource.APPLY,
+      },
+    })
+    const snapshot = vi
+      .fn()
+      .mockResolvedValueOnce(create(TelemetrySnapshotSchema, { state: SystemState.READY }))
+      .mockResolvedValue(afterWrite)
+    const applyConfiguration = vi
+      .fn()
+      .mockRejectedValue(
+        new Error('[CONFIGURATION_AUDIT_FAILED] effective configuration audit rejected'),
+      )
+    const { store, wrapper } = mountStore(fakeApi({ snapshot, applyConfiguration }))
+    void store.connect()
+    await vi.waitFor(() => expect(store.snapshot.value?.state).toBe(SystemState.READY))
+
+    expect(await store.applyConfiguration('HG_ShapingTime 50 ns')).toBe(false)
+
+    expect(store.error.value).toContain('CONFIGURATION_AUDIT_FAILED')
+    expect(store.configurationStatus('HG_ShapingTime 50 ns')).toBe('current')
+    expect(store.configurationStatus('HG_ShapingTime 75 ns')).toBe('changed')
+    wrapper.unmount()
+  })
+
+  it('does not adopt a record it did not produce after a failure', async () => {
+    const foreign = create(TelemetrySnapshotSchema, {
+      state: SystemState.READY,
+      appliedConfiguration: {
+        appliedAt: { seconds: 1_800_000_200n, nanos: 0 },
+        requestedBy: 'other-session',
+        source: AppliedConfigurationSource.APPLY,
+      },
+    })
+    const snapshot = vi
+      .fn()
+      .mockResolvedValueOnce(create(TelemetrySnapshotSchema, { state: SystemState.READY }))
+      .mockResolvedValue(foreign)
+    const applyConfiguration = vi.fn().mockRejectedValue(new Error('[CONCURRENT_OPERATION] busy'))
+    const { store, wrapper } = mountStore(fakeApi({ snapshot, applyConfiguration }))
+    void store.connect()
+    await vi.waitFor(() => expect(store.snapshot.value?.state).toBe(SystemState.READY))
+
+    expect(await store.applyConfiguration('HG_ShapingTime 50 ns')).toBe(false)
+    expect(store.configurationStatus('HG_ShapingTime 50 ns')).toBe('none')
+    wrapper.unmount()
+  })
+
   it('does not start a run when configuration validation fails', async () => {
     const start = vi.fn<(request: StartRunRequest) => Promise<Record<string, never>>>()
     const api = fakeApi({

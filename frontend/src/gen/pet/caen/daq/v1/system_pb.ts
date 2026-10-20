@@ -547,6 +547,10 @@ export type AppliedConfiguration = Message<'pet.caen.daq.v1.AppliedConfiguration
   boardCount: number
 
   /**
+   * True when the backend runs with -authorize-hv-config, so this
+   * application also wrote the HV setpoints (HV_Vbias, HV_Imax, temperature
+   * feedback). When false the boards keep their previous HV setpoints.
+   *
    * @generated from field: bool hv_authorized = 6;
    */
   hvAuthorized: boolean
@@ -3237,8 +3241,11 @@ export const RunService: GenService<{
   }
   /**
    * Validates, plans, audits, and writes a configuration to the connected
-   * boards exactly as StartRun does, without starting acquisition, allocating
-   * a run number, or creating run files. Scans and the HV switch then use it.
+   * boards as StartRun does, without starting acquisition, allocating a run
+   * number, or creating run files. Unlike StartRun it always rewrites the
+   * registers, even when the boards already hold an identical configuration.
+   * HV setpoints are written only when the backend runs with
+   * -authorize-hv-config. Scans and the HV switch then use it.
    *
    * @generated from rpc pet.caen.daq.v1.RunService.ApplyConfiguration
    */
