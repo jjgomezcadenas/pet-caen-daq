@@ -666,6 +666,10 @@ func TestProductionConfigurationAppliesAndValidatesFourBoards(t *testing.T) {
 		if snapshot.CitirocLoads != [2]uint32{1, 1} {
 			t.Errorf("board %d Citiroc loads = %v", board, snapshot.CitirocLoads)
 		}
+		// FERSlib defaults with the fixture's FastShaperInput LG-PA and HV_Adjust_Range 4.5.
+		if got := snapshot.Registers[uint32(dt5202.CitirocConfig)]; got != 0x00070fa1 {
+			t.Errorf("board %d CitirocConfig = %#08x, want 0x00070fa1", board, got)
+		}
 		for selector, want := range map[uint32]uint32{0x21e: 1, 0x102: 454000, 0x105: 10000, 0x108: 500000, 0x11c: 0xfffaa8d0, 0x001: 0} {
 			if got := snapshot.HVRegisters[selector]; got != want {
 				t.Errorf("board %d HV selector %#x = %#x, want %#x", board, selector, got, want)

@@ -26,7 +26,7 @@ func TestPlanProductionConfiguration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("board %d: %v", board, err)
 		}
-		if got, want := len(plan.Writes), 34+5*ChannelCount; got != want {
+		if got, want := len(plan.Writes), 35+5*ChannelCount; got != want {
 			t.Fatalf("board %d writes = %d, want %d", board, got, want)
 		}
 		writes := make(map[Register]uint32)
@@ -41,6 +41,8 @@ func TestPlanProductionConfiguration(t *testing.T) {
 			IndividualRegister(LowGain, 63): 55, IndividualRegister(HighGain, 63): 55,
 			IndividualRegister(HVIndividualAdjustment, 63): 0x100,
 			DigitalProbe: 0xffff, CitirocProbe: 0,
+			// FERSlib defaults with FastShaperInput LG-PA and HV_Adjust_Range 4.5.
+			CitirocConfig: 0x00070fa1,
 		}
 		for address, want := range checks {
 			if got := writes[address]; got != want {
