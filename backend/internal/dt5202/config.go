@@ -535,7 +535,19 @@ func PlanProductionConfiguration(doc *janusconfig.Document, board int) (Configur
 		}
 	}
 
-	citirocModes := CitirocModes{FastShaperOnLowGain: fastShaper != 0, InputDACReference45V: hvRange != 0}
+	// PeakDetectorMode is a FERSlib setting that the JANUS GUI does not expose.
+	// Configurations that omit it keep the FERSlib default, the peak detector.
+	trackAndHold := false
+	if a, ok := values["PeakDetectorMode"]; ok {
+		switch strings.TrimSpace(a.Value) {
+		case "PEAK_STRETCH":
+		case "TRACK&HOLD":
+			trackAndHold = true
+		default:
+			return ConfigurationPlan{}, fmt.Errorf("line %d: PeakDetectorMode has unsupported value %q (use PEAK_STRETCH or TRACK&HOLD)", a.Line, a.Value)
+		}
+	}
+	citirocModes := CitirocModes{FastShaperOnLowGain: fastShaper != 0, InputDACReference45V: hvRange != 0, TrackAndHold: trackAndHold}
 	plan := ConfigurationPlan{Board: board, Writes: []RegisterWrite{
 		{ChannelMaskLow, mask0}, {ChannelMaskHigh, mask1}, {AcquisitionControl, acqControl},
 		{ChannelTriggerWidth, uint32(chWidth / 8)}, {TriggerLogicWidth, uint32(logicWidth / 8)},

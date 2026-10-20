@@ -6,6 +6,8 @@ package dt5202
 // bit each one drives is given in the comment.
 const (
 	citirocCfgChargeLatch            = 0  // stream bit 258
+	citirocCfgTrackHoldHigh          = 2  // stream bit 306: high gain track & hold instead of peak detector
+	citirocCfgTrackHoldLow           = 3  // stream bit 307: low gain track & hold instead of peak detector
 	citirocCfgPeakSensingTrigger     = 5  // stream bit 309: peak sensing triggered externally
 	citirocCfgFastShaperOnLowGain    = 7  // stream bit 328
 	citirocCfgInputDACReference45V   = 8  // stream bit 330
@@ -26,6 +28,7 @@ const (
 type CitirocModes struct {
 	FastShaperOnLowGain  bool // FastShaperInput LG-PA
 	InputDACReference45V bool // HV_Adjust_Range 4.5 or DISABLED
+	TrackAndHold         bool // PeakDetectorMode TRACK&HOLD, both gains
 }
 
 // Register returns the CitirocConfig register value for these modes.
@@ -44,6 +47,9 @@ func (m CitirocModes) Register() uint32 {
 	if m.InputDACReference45V {
 		v |= 1 << citirocCfgInputDACReference45V
 	}
+	if m.TrackAndHold {
+		v |= 1<<citirocCfgTrackHoldHigh | 1<<citirocCfgTrackHoldLow
+	}
 	return v
 }
 
@@ -54,6 +60,8 @@ func (m CitirocModes) ApplyTo(common *CitirocCommon) {
 	common.PeakSensingExternalTrigger = true
 	common.FastShaperOnLowGain = m.FastShaperOnLowGain
 	common.InputDACReference45V = m.InputDACReference45V
+	common.PeakDetectorHigh = m.TrackAndHold
+	common.PeakDetectorLow = m.TrackAndHold
 	common.OTAForceOn = true
 	common.NegativeTriggerPolarity = true
 	common.EnableChannelTriggers = true
