@@ -228,6 +228,13 @@ func (r *hardwareRuntime) Connect(ctx context.Context, actor, configuration stri
 	r.monitorCancel, r.topology = monitorCancel, topology
 	r.configuredFor, r.configured = cloneDocument(r.document), cloneConfigurationResult(configured)
 	r.mu.Unlock()
+	r.publisher.Update(func(snapshot *daqv1.TelemetrySnapshot) {
+		snapshot.AppliedConfiguration = &daqv1.AppliedConfiguration{
+			AppliedAt: timestamppb.Now(), RequestedBy: actor,
+			Source:     daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_CONNECT,
+			BoardCount: uint32(len(configured.Plans)), HvAuthorized: configured.HVAuthorized,
+		}
+	})
 	failed = false
 	fmt.Fprintf(r.output, "hardware connected requested_by=%s devices=%d\n", actor, len(topology.Boards))
 	return nil
@@ -319,6 +326,7 @@ func (r *hardwareRuntime) Disconnect(_ context.Context, actor string) error {
 		snapshot.State = daqv1.SystemState_SYSTEM_STATE_DISCONNECTED
 		snapshot.Chains = nil
 		snapshot.Concentrator = nil
+		snapshot.AppliedConfiguration = nil
 	})
 	fmt.Fprintf(r.output, "hardware disconnected requested_by=%s\n", actor)
 	return err
