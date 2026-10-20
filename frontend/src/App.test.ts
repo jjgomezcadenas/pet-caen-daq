@@ -504,6 +504,7 @@ describe('operator dashboard', () => {
     expect(api.applyConfiguration).toHaveBeenCalledWith(
       'operator',
       vi.mocked(api.validate).mock.calls[0][0],
+      expect.stringMatching(/^[0-9a-f]{32}$/),
     )
     expect(api.start).not.toHaveBeenCalled()
     expect(wrapper.get('#system-heading').text()).toBe('Ready')

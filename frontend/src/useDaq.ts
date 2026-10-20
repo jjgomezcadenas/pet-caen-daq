@@ -19,6 +19,13 @@ import {
 const staleAfterMs = 5_000
 const operatorIdentity = 'operator'
 
+function configurationRequestId() {
+  // getRandomValues also works on the plain HTTP origins used by the DAQ.
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+}
+
 // How the editor text relates to the configuration on the boards: nothing
 // applied (disconnected), identical, edited since, or applied outside this
 // page (another session, or before a reload) so it cannot be compared.
@@ -29,7 +36,7 @@ export type ConfigurationApplyStatus = 'none' | 'current' | 'changed' | 'unknown
 function appliedConfigurationKey(applied: AppliedConfiguration | undefined) {
   if (!applied) return ''
   const at = applied.appliedAt
-  return `${at?.seconds ?? 0n}.${at?.nanos ?? 0}:${applied.source}:${applied.requestedBy}`
+  return `${at?.seconds ?? 0n}.${at?.nanos ?? 0}:${applied.source}:${applied.requestedBy}:${applied.configurationRequestId}`
 }
 
 export function useDaq(api: DaqApi) {
@@ -227,7 +234,7 @@ export function useDaq(api: DaqApi) {
     busy.value = true
     startingRun.value = true
     error.value = ''
-    const before = appliedConfigurationKey(snapshot.value?.appliedConfiguration)
+    const requestId = configurationRequestId()
     try {
       const valid = await validate(input.configuration)
       if (!valid) return
@@ -235,6 +242,7 @@ export function useDaq(api: DaqApi) {
       const result = await api.start(
         create(StartRunRequestSchema, {
           requestedBy: operatorIdentity,
+          configurationRequestId: requestId,
           janusConfiguration: input.configuration,
           captureRaw: input.captureRaw,
           journalTransport: input.journalTransport,
@@ -247,7 +255,7 @@ export function useDaq(api: DaqApi) {
       rememberApplied(input.configuration, result.snapshot)
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : String(reason)
-      await rememberAfterFailure(input.configuration, before, AppliedConfigurationSource.RUN)
+      await rememberAfterFailure(input.configuration, requestId, AppliedConfigurationSource.RUN)
     } finally {
       startingRun.value = false
       busy.value = false
@@ -260,20 +268,18 @@ export function useDaq(api: DaqApi) {
   }
 
   // A request can fail after the boards were written (an audit rejection).
-  // The backend then records the application in telemetry; recognise our own
-  // record so the page does not report it as applied elsewhere.
+  // The backend echoes our request ID even after an audit rejection. The
+  // shared operator identity and a newer timestamp do not prove ownership.
   async function rememberAfterFailure(
     configuration: string,
-    before: string,
+    requestId: string,
     source: AppliedConfigurationSource,
   ) {
     try {
       const next = await api.snapshot()
       const applied = next?.appliedConfiguration
-      const key = appliedConfigurationKey(applied)
-      if (!key || key === before) return
-      if (applied?.source !== source || applied.requestedBy !== operatorIdentity) return
       accept(next)
+      if (applied?.source !== source || applied.configurationRequestId !== requestId) return
       rememberApplied(configuration, next)
     } catch {
       // The original command error remains the report shown to the operator.
@@ -291,18 +297,18 @@ export function useDaq(api: DaqApi) {
     busy.value = true
     applyingConfiguration.value = true
     error.value = ''
-    const before = appliedConfigurationKey(snapshot.value?.appliedConfiguration)
+    const requestId = configurationRequestId()
     try {
       const valid = await validate(configuration)
       if (!valid) return false
       busy.value = true
-      const result = await api.applyConfiguration(operatorIdentity, configuration)
+      const result = await api.applyConfiguration(operatorIdentity, configuration, requestId)
       accept(result.snapshot)
       rememberApplied(configuration, result.snapshot)
       return true
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : String(reason)
-      await rememberAfterFailure(configuration, before, AppliedConfigurationSource.APPLY)
+      await rememberAfterFailure(configuration, requestId, AppliedConfigurationSource.APPLY)
       return false
     } finally {
       applyingConfiguration.value = false

@@ -27,7 +27,7 @@ func TestApplyConfigurationConfiguresWithoutStartingRun(t *testing.T) {
 		return acquisition.ConfigurationResult{Plans: []dt5202.ConfigurationPlan{{Board: 0}}, HVAuthorized: true}, nil
 	}
 	response, err := service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{
-		RequestedBy: "operator", JanusConfiguration: validTopology,
+		RequestedBy: "operator", JanusConfiguration: validTopology, ConfigurationRequestId: "apply-request",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestApplyConfigurationConfiguresWithoutStartingRun(t *testing.T) {
 	}
 	applied := response.Msg.GetAppliedConfiguration()
 	if applied.GetSource() != daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY || applied.GetRequestedBy() != "operator" ||
-		applied.GetRunId() != "" || applied.GetBoardCount() != 1 || !applied.GetHvAuthorized() || !applied.GetAppliedAt().AsTime().Equal(service.now()) {
+		applied.GetConfigurationRequestId() != "apply-request" || applied.GetRunId() != "" || applied.GetBoardCount() != 1 || !applied.GetHvAuthorized() || !applied.GetAppliedAt().AsTime().Equal(service.now()) {
 		t.Fatalf("applied configuration = %+v", applied)
 	}
 	snapshot := response.Msg.GetSnapshot()
@@ -136,12 +136,12 @@ func TestApplyConfigurationFailureFaultClearsAppliedRecord(t *testing.T) {
 func TestStartRunRecordsAppliedConfigurationWithRunNumber(t *testing.T) {
 	controller := &fakeRunController{state: acquisition.StateReady}
 	service := newRunService(t, controller)
-	start, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: validTopology}))
+	start, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: validTopology, ConfigurationRequestId: "run-request"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	applied := start.Msg.GetSnapshot().GetAppliedConfiguration()
-	if applied.GetSource() != daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN || applied.GetRunId() != "42" || applied.GetRequestedBy() != "operator" {
+	if applied.GetSource() != daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN || applied.GetRunId() != "42" || applied.GetRequestedBy() != "operator" || applied.GetConfigurationRequestId() != "run-request" {
 		t.Fatalf("applied configuration = %+v", applied)
 	}
 	_, err = service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{RequestedBy: "operator", JanusConfiguration: validTopology}))
@@ -163,11 +163,11 @@ func TestAuditRejectionStillRecordsTheWrittenConfiguration(t *testing.T) {
 		source daqv1.AppliedConfigurationSource
 	}{
 		{"apply", func(service *RunService) error {
-			_, err := service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{RequestedBy: "operator", JanusConfiguration: rejected}))
+			_, err := service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{RequestedBy: "operator", JanusConfiguration: rejected, ConfigurationRequestId: "rejected-request"}))
 			return err
 		}, daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY},
 		{"start run", func(service *RunService) error {
-			_, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: rejected}))
+			_, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: rejected, ConfigurationRequestId: "rejected-request"}))
 			return err
 		}, daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN},
 	} {
@@ -184,7 +184,7 @@ func TestAuditRejectionStillRecordsTheWrittenConfiguration(t *testing.T) {
 				t.Fatalf("code=%v error=%v", connect.CodeOf(err), err)
 			}
 			applied := service.Telemetry.Snapshot().GetAppliedConfiguration()
-			if applied.GetSource() != test.source || applied.GetRunId() != "" || applied.GetRequestedBy() != "operator" || applied.GetBoardCount() != 1 {
+			if applied.GetSource() != test.source || applied.GetConfigurationRequestId() != "rejected-request" || applied.GetRunId() != "" || applied.GetRequestedBy() != "operator" || applied.GetBoardCount() != 1 {
 				t.Fatalf("applied configuration = %+v", applied)
 			}
 			if controller.active != "" || controller.options.RequestedConfiguration != "" {

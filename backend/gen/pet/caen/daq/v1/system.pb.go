@@ -1556,8 +1556,12 @@ type StartRunRequest struct {
 	// Compression applied to HDF5 event segments and histogram artifacts.
 	// Empty selects blosc-lz4-level4-bitshuffle.
 	Hdf5Compression string `protobuf:"bytes,8,opt,name=hdf5_compression,json=hdf5Compression,proto3" json:"hdf5_compression,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Optional client-generated correlation ID, echoed in applied_configuration
+	// if configuration succeeds, including when a later audit rejects the run.
+	// This is not an idempotency key: repeated requests still run normally.
+	ConfigurationRequestId string `protobuf:"bytes,9,opt,name=configuration_request_id,json=configurationRequestId,proto3" json:"configuration_request_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *StartRunRequest) Reset() {
@@ -1639,6 +1643,13 @@ func (x *StartRunRequest) GetHdf5Compression() string {
 	return ""
 }
 
+func (x *StartRunRequest) GetConfigurationRequestId() string {
+	if x != nil {
+		return x.ConfigurationRequestId
+	}
+	return ""
+}
+
 type StartRunResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Run           *RunSummary            `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
@@ -1695,8 +1706,10 @@ type ApplyConfigurationRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	JanusConfiguration string                 `protobuf:"bytes,1,opt,name=janus_configuration,json=janusConfiguration,proto3" json:"janus_configuration,omitempty"`
 	RequestedBy        string                 `protobuf:"bytes,2,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Optional client-generated correlation ID; not an idempotency key.
+	ConfigurationRequestId string `protobuf:"bytes,3,opt,name=configuration_request_id,json=configurationRequestId,proto3" json:"configuration_request_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ApplyConfigurationRequest) Reset() {
@@ -1739,6 +1752,13 @@ func (x *ApplyConfigurationRequest) GetJanusConfiguration() string {
 func (x *ApplyConfigurationRequest) GetRequestedBy() string {
 	if x != nil {
 		return x.RequestedBy
+	}
+	return ""
+}
+
+func (x *ApplyConfigurationRequest) GetConfigurationRequestId() string {
+	if x != nil {
+		return x.ConfigurationRequestId
 	}
 	return ""
 }
@@ -1809,9 +1829,12 @@ type AppliedConfiguration struct {
 	// True when the backend runs with -authorize-hv-config, so this
 	// application also wrote the HV setpoints (HV_Vbias, HV_Imax, temperature
 	// feedback). When false the boards keep their previous HV setpoints.
-	HvAuthorized  bool `protobuf:"varint,6,opt,name=hv_authorized,json=hvAuthorized,proto3" json:"hv_authorized,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HvAuthorized bool `protobuf:"varint,6,opt,name=hv_authorized,json=hvAuthorized,proto3" json:"hv_authorized,omitempty"`
+	// Identifies the Apply/Start request that wrote this configuration, even
+	// if its RPC failed after the write. Empty for connect and older clients.
+	ConfigurationRequestId string `protobuf:"bytes,7,opt,name=configuration_request_id,json=configurationRequestId,proto3" json:"configuration_request_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AppliedConfiguration) Reset() {
@@ -1884,6 +1907,13 @@ func (x *AppliedConfiguration) GetHvAuthorized() bool {
 		return x.HvAuthorized
 	}
 	return false
+}
+
+func (x *AppliedConfiguration) GetConfigurationRequestId() string {
+	if x != nil {
+		return x.ConfigurationRequestId
+	}
+	return ""
 }
 
 type StopRunRequest struct {
@@ -5958,7 +5988,7 @@ const file_pet_caen_daq_v1_system_proto_rawDesc = "" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x12!\n" +
 	"\frequested_by\x18\x03 \x01(\tR\vrequestedBy\"X\n" +
 	"\x16SetHighVoltageResponse\x12>\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"\xcc\x02\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"\x86\x03\n" +
 	"\x0fStartRunRequest\x12/\n" +
 	"\x13janus_configuration\x18\x02 \x01(\tR\x12janusConfiguration\x12\x1f\n" +
 	"\vcapture_raw\x18\x03 \x01(\bR\n" +
@@ -5967,16 +5997,18 @@ const file_pet_caen_daq_v1_system_proto_rawDesc = "" +
 	"\frequested_by\x18\x05 \x01(\tR\vrequestedBy\x12/\n" +
 	"\x14hdf5_segment_size_mb\x18\x06 \x01(\rR\x11hdf5SegmentSizeMb\x12-\n" +
 	"\x12persist_histograms\x18\a \x01(\bR\x11persistHistograms\x12)\n" +
-	"\x10hdf5_compression\x18\b \x01(\tR\x0fhdf5CompressionJ\x04\b\x01\x10\x02R\x06run_id\"\x81\x01\n" +
+	"\x10hdf5_compression\x18\b \x01(\tR\x0fhdf5Compression\x128\n" +
+	"\x18configuration_request_id\x18\t \x01(\tR\x16configurationRequestIdJ\x04\b\x01\x10\x02R\x06run_id\"\x81\x01\n" +
 	"\x10StartRunResponse\x12-\n" +
 	"\x03run\x18\x01 \x01(\v2\x1b.pet.caen.daq.v1.RunSummaryR\x03run\x12>\n" +
-	"\bsnapshot\x18\x02 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"o\n" +
+	"\bsnapshot\x18\x02 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"\xa9\x01\n" +
 	"\x19ApplyConfigurationRequest\x12/\n" +
 	"\x13janus_configuration\x18\x01 \x01(\tR\x12janusConfiguration\x12!\n" +
-	"\frequested_by\x18\x02 \x01(\tR\vrequestedBy\"\xb8\x01\n" +
+	"\frequested_by\x18\x02 \x01(\tR\vrequestedBy\x128\n" +
+	"\x18configuration_request_id\x18\x03 \x01(\tR\x16configurationRequestId\"\xb8\x01\n" +
 	"\x1aApplyConfigurationResponse\x12Z\n" +
 	"\x15applied_configuration\x18\x01 \x01(\v2%.pet.caen.daq.v1.AppliedConfigurationR\x14appliedConfiguration\x12>\n" +
-	"\bsnapshot\x18\x02 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"\x96\x02\n" +
+	"\bsnapshot\x18\x02 \x01(\v2\".pet.caen.daq.v1.TelemetrySnapshotR\bsnapshot\"\xd0\x02\n" +
 	"\x14AppliedConfiguration\x129\n" +
 	"\n" +
 	"applied_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tappliedAt\x12!\n" +
@@ -5985,7 +6017,8 @@ const file_pet_caen_daq_v1_system_proto_rawDesc = "" +
 	"\x06run_id\x18\x04 \x01(\tR\x05runId\x12\x1f\n" +
 	"\vboard_count\x18\x05 \x01(\rR\n" +
 	"boardCount\x12#\n" +
-	"\rhv_authorized\x18\x06 \x01(\bR\fhvAuthorized\"J\n" +
+	"\rhv_authorized\x18\x06 \x01(\bR\fhvAuthorized\x128\n" +
+	"\x18configuration_request_id\x18\a \x01(\tR\x16configurationRequestId\"J\n" +
 	"\x0eStopRunRequest\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12!\n" +
 	"\frequested_by\x18\x02 \x01(\tR\vrequestedBy\"\x80\x01\n" +

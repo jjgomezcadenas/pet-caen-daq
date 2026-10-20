@@ -32,7 +32,11 @@ export interface DaqApi {
   disconnectHardware(requestedBy: string): Promise<TelemetrySnapshot>
   discoverHardware(requestedBy: string): Promise<TelemetrySnapshot>
   validate(configuration: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>
-  applyConfiguration(requestedBy: string, configuration: string): Promise<ApplyConfigurationResult>
+  applyConfiguration(
+    requestedBy: string,
+    configuration: string,
+    configurationRequestId: string,
+  ): Promise<ApplyConfigurationResult>
   start(request: StartRunRequest): Promise<RunCommandResult>
   stop(request: StopRunRequest): Promise<RunCommandResult>
   setHighVoltage(
@@ -114,8 +118,12 @@ export function createDaqApi(baseUrl = window.location.origin): DaqApi {
       if (!response.snapshot) throw new Error('Discovery command returned no telemetry snapshot')
       return response.snapshot
     },
-    async applyConfiguration(requestedBy, janusConfiguration) {
-      const response = await runs.applyConfiguration({ requestedBy, janusConfiguration })
+    async applyConfiguration(requestedBy, janusConfiguration, configurationRequestId) {
+      const response = await runs.applyConfiguration({
+        requestedBy,
+        janusConfiguration,
+        configurationRequestId,
+      })
       return { appliedConfiguration: response.appliedConfiguration, snapshot: response.snapshot }
     },
     async start(request) {

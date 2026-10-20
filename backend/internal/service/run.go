@@ -608,7 +608,7 @@ func (s *RunService) StartRun(ctx context.Context, request *connect.Request[daqv
 	if s.AllocateRunID == nil {
 		return nil, serviceError(connect.CodeFailedPrecondition, "RUN_ID_ALLOCATION_UNAVAILABLE", fmt.Errorf("run catalog ID allocation is not configured"))
 	}
-	prepared, err := s.applyConfiguration(ctx, s.Configure, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN)
+	prepared, err := s.applyConfiguration(ctx, s.Configure, message.GetJanusConfiguration(), message.GetRequestedBy(), message.GetConfigurationRequestId(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN)
 	if err != nil {
 		return nil, err
 	}
@@ -682,7 +682,7 @@ func (s *RunService) ApplyConfiguration(ctx context.Context, request *connect.Re
 	if s.ForceConfigure != nil {
 		configure = s.ForceConfigure
 	}
-	if _, err := s.applyConfiguration(ctx, configure, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY); err != nil {
+	if _, err := s.applyConfiguration(ctx, configure, message.GetJanusConfiguration(), message.GetRequestedBy(), message.GetConfigurationRequestId(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY); err != nil {
 		return nil, err
 	}
 	snapshot := s.publish(nil)
@@ -704,7 +704,7 @@ type preparedConfiguration struct {
 // applyConfiguration is the configuration half of StartRun shared with
 // ApplyConfiguration. On success the boards hold the requested configuration,
 // the system is ready, and the published snapshot records the application.
-func (s *RunService) applyConfiguration(ctx context.Context, configure ConfigurationApplier, text, requestedBy string, source daqv1.AppliedConfigurationSource) (preparedConfiguration, error) {
+func (s *RunService) applyConfiguration(ctx context.Context, configure ConfigurationApplier, text, requestedBy, requestID string, source daqv1.AppliedConfigurationSource) (preparedConfiguration, error) {
 	var prepared preparedConfiguration
 	if issues := ValidateJANUSConfiguration(text); len(issues) != 0 {
 		return prepared, serviceError(connect.CodeInvalidArgument, "INVALID_CONFIGURATION", fmt.Errorf("configuration is invalid: %s", issues[0].GetMessage()))
@@ -740,6 +740,7 @@ func (s *RunService) applyConfiguration(ctx context.Context, configure Configura
 	applied := &daqv1.AppliedConfiguration{
 		AppliedAt: timestamppb.New(s.now()), RequestedBy: requestedBy, Source: source,
 		BoardCount: uint32(len(prepared.configured.Plans)), HvAuthorized: prepared.configured.HVAuthorized,
+		ConfigurationRequestId: requestID,
 	}
 	s.Telemetry.Update(func(snapshot *daqv1.TelemetrySnapshot) { snapshot.AppliedConfiguration = applied })
 	boards, concentrator := s.Boards, s.Concentrator
