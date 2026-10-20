@@ -15,6 +15,7 @@ import StaircaseWorkspace from './StaircaseWorkspace.vue'
 import HoldDelayWorkspace from './HoldDelayWorkspace.vue'
 import { hvState } from './hvStatus'
 import {
+  configurationEditorFields,
   isBooleanField,
   isMaskField,
   numericConstraint,
@@ -336,13 +337,14 @@ function clearRunSearch() {
   daq.clearSearch()
 }
 
+const editorFields = computed(() => configurationEditorFields(configurationDocument.value))
 const sections = computed(() => [
   'All',
-  ...new Set(configurationDocument.value.fields.map((field) => field.section)),
+  ...new Set(editorFields.value.map((field) => field.section)),
 ])
 const visibleFields = computed(() => {
   const query = selectedSection.value === 'All' ? parameterSearch.value.trim().toLowerCase() : ''
-  return configurationDocument.value.fields.filter(
+  return editorFields.value.filter(
     (field) =>
       !(isMaskField(field) && (field.name.endsWith('1') || field.index !== undefined)) &&
       !(
@@ -1181,9 +1183,7 @@ onMounted(() => daq.connect())
           <div class="config-heading">
             <div>
               <label>Acquisition parameters</label>
-              <p class="muted">
-                {{ configurationDocument.fields.length }} settings from the backend template
-              </p>
+              <p class="muted">{{ editorFields.length }} settings</p>
             </div>
             <div class="config-tools">
               <button class="link-button" type="button" @click="loadDefaultConfiguration">

@@ -99,6 +99,8 @@ func TestStaircaseRestoresProductionCitirocModes(t *testing.T) {
 	}{
 		{"LG_4.5", "\nFastShaperInput LG-PA\nHV_Adjust_Range 4.5\n", 0x00070fa1},
 		{"HG_2.5", "\nFastShaperInput HG-PA\nHV_Adjust_Range 2.5\n", 0x00070e21},
+		{"LG_4.5_track_hold", "\nFastShaperInput LG-PA\nHV_Adjust_Range 4.5\nPeakDetectorMode TRACK&HOLD\n", 0x00070fad},
+		{"HG_2.5_track_hold", "\nFastShaperInput HG-PA\nHV_Adjust_Range 2.5\nPeakDetectorMode TRACK&HOLD\n", 0x00070e2d},
 	} {
 		for _, scenario := range []struct {
 			name           string

@@ -275,6 +275,9 @@ LG_ShapingTime					"25 ns"				g		c		# Shaping Time of the slow shaper (Low Gain)
 _BLANK 							-					-		-
 
 HoldDelay						"200 ns"			g		du		# Delay between bunch trigger (start of peak detection) and hold (stop of peak detection)
+PeakDetectorMode				PEAK_STRETCH		g		c		# Slow-shaper sampling: PEAK_STRETCH holds the maximum between bunch trigger and hold; TRACK&HOLD holds the value at the hold. FERSlib setting, not in the JANUS GUI definitions
+	- PEAK_STRETCH
+	- TRACK&HOLD
 MuxClkPeriod					"300 ns"			g		du		# Multiplexer readout speed. Best setting = 300 ns
 #MuxNSmean						4					g		c		# Number of ADC samples for the mean
 #	- 1

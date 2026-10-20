@@ -50,8 +50,8 @@ func TestProductionAuditAccountsForEveryAssignment(t *testing.T) {
 	if !report.Valid {
 		t.Fatal("production audit is invalid")
 	}
-	if len(report.Settings) != 103 {
-		t.Fatalf("settings = %d, want 103", len(report.Settings))
+	if len(report.Settings) != 104 {
+		t.Fatalf("settings = %d, want 104", len(report.Settings))
 	}
 	seenInactive := map[string]bool{}
 	for _, setting := range report.Settings {
@@ -117,4 +117,46 @@ func TestAuditAllowsDisabledDigitalProbesOnOlderFirmware(t *testing.T) {
 	if !report.Valid {
 		t.Fatalf("disabled digital probes must be valid on older firmware: %+v", report.Settings)
 	}
+}
+
+func TestAuditAppliesPeakDetectorMode(t *testing.T) {
+	fixture, err := os.ReadFile("../../../test/fixtures/janus/config_same4_v3_good.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := janusconfig.Parse(strings.NewReader(string(fixture) + "\nPeakDetectorMode TRACK&HOLD\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plans []dt5202.ConfigurationPlan
+	var boards []BoardEvidence
+	for board := range 4 {
+		plan, err := dt5202.PlanProductionConfiguration(doc, board)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err = plan.WithPedestalCalibration(dt5202.PedestalCalibration{Source: "protected flash page 4"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans = append(plans, plan)
+		boards = append(boards, BoardEvidence{Board: board, FirmwareRevision: 0x0800a707})
+	}
+	report, err := Build(doc, plans, boards)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Valid {
+		t.Fatal("audit with PeakDetectorMode is invalid")
+	}
+	for _, setting := range report.Settings {
+		if setting.Name != "PeakDetectorMode" || setting.Requested != "TRACK&HOLD" {
+			continue
+		}
+		if setting.Status != Applied || len(setting.Effective) != 4 || setting.Effective[0].Value != "TRACK&HOLD" {
+			t.Fatalf("PeakDetectorMode audit = %#v", setting)
+		}
+		return
+	}
+	t.Fatal("PeakDetectorMode missing from the audit")
 }

@@ -3,8 +3,8 @@ import { janusParameterCatalog, janusParameters } from './catalog'
 
 describe('JANUS 5202 5.0.0 parameter catalog', () => {
   it('accounts for every upstream parameter and monitor', () => {
-    expect(janusParameters).toHaveLength(73)
-    expect(new Set(janusParameters.map((parameter) => parameter.name)).size).toBe(73)
+    expect(janusParameters).toHaveLength(74)
+    expect(new Set(janusParameters.map((parameter) => parameter.name)).size).toBe(74)
     for (const name of [
       'Range_14bit',
       'EventBuildingMode',
@@ -71,5 +71,9 @@ describe('JANUS 5202 5.0.0 parameter catalog', () => {
         'Coincidence window for PAIRED_AND counting mode. 0 disables it; otherwise use 8–2032 ns in 8 ns steps',
     })
     expect(janusParameterCatalog.get('Vnom')?.widget).toBe('monitor')
+    expect(janusParameterCatalog.get('PeakDetectorMode')).toMatchObject({
+      scope: 'global',
+      options: ['PEAK_STRETCH', 'TRACK&HOLD'],
+    })
   })
 })

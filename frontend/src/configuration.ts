@@ -7,7 +7,7 @@ export interface ConfigurationField {
   value: string
   help: string
   options: string[]
-  line: number
+  line: number // 0 for an editor default with no assignment in the source
 }
 
 export interface NumericConstraint {
@@ -70,11 +70,32 @@ export function parseConfiguration(source: string): ConfigurationDocument {
   return { source, fields }
 }
 
+// Optional modes remain selectable in older files without rewriting the
+// imported source until the operator edits them.
+export function configurationEditorFields(document: ConfigurationDocument): ConfigurationField[] {
+  if (document.fields.some((field) => field.name === 'PeakDetectorMode')) return document.fields
+  const mode = janusParameterCatalog.get('PeakDetectorMode')!
+  return [
+    ...document.fields,
+    {
+      id: 'PeakDetectorMode[default]@implicit',
+      name: mode.name,
+      section: mode.section,
+      value: mode.defaultValue,
+      help: mode.description,
+      options: [...mode.options],
+      line: 0,
+    },
+  ]
+}
+
 export function updateConfiguration(
   document: ConfigurationDocument,
   field: ConfigurationField,
   value: string,
-) {
+): ConfigurationDocument {
+  if (field.line === 0)
+    return setConfigurationValue(document, field.name, undefined, undefined, value)
   const lines = document.source.split(/\r?\n/)
   const lineIndex = field.line - 1
   const match = lines[lineIndex]?.match(assignment)
@@ -90,7 +111,7 @@ export function setConfigurationValue(
   index: number | undefined,
   channel: number | undefined,
   value: string | undefined,
-) {
+): ConfigurationDocument {
   const existing = document.fields.find(
     (field) =>
       field.name === name &&

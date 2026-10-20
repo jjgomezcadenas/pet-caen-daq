@@ -157,6 +157,7 @@ High-priority frontend gaps after the current milestones are:
 | `HG_ShapingTime` | High-gain slow-shaper peaking time. | Global select: 12.5–87.5 ns. | **Complete.** |
 | `LG_ShapingTime` | Low-gain slow-shaper peaking time. | Global select: 12.5–87.5 ns. | **Complete.** |
 | `HoldDelay` | Delay from bunch trigger to peak-detector hold. | Global time. | **Complete in backend.** Frontend lacks a specific range/8 ns step. |
+| `PeakDetectorMode` | Peak detector or track & hold on both slow shapers. | Not in the JANUS GUI; FERSlib reads it from the configuration file. Global: PEAK_STRETCH, TRACK&HOLD. | **Complete.** `CitirocConfig` bits 2 and 3 (stream bits 306 and 307); omitted means PEAK_STRETCH. |
 | `MuxClkPeriod` | Analog multiplexer readout period. | Global time; JANUS recommends 300 ns. | **Complete in backend.** Frontend lacks a dedicated legal-range constraint. |
 | `EHistoNbin` | PHA histogram bin count. | Global combo: disabled, 256–8K. | **Complete.** The active run lazily stores bounded HG/LG arrays and can persist the drained snapshot as a run artifact. |
 | `ToAHistoNbin` | ToA histogram bin count. | Global combo: disabled, 256–16K. | **Complete for the initial live domain.** Per-channel ToA arrays are accumulated and requested independently of telemetry. |
@@ -295,6 +296,7 @@ validated but not applied.
 | Register bit | Stream bit | Meaning | Value |
 | -----------: | ---------: | ------- | ----- |
 | 0 | 258 | charge discriminator latched | 1 (FERSlib default `EnableQdiscrLatch`) |
+| 2, 3 | 306, 307 | track & hold instead of peak detector, high and low gain | `PeakDetectorMode` TRACK&HOLD |
 | 5 | 309 | peak sensing triggered externally | 1 (fixed in FERSlib) |
 | 7 | 328 | fast shaper on the low-gain preamplifier | `FastShaperInput` |
 | 8 | 330 | input DAC reference 4.5 V | `HV_Adjust_Range` 4.5 or DISABLED |

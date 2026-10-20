@@ -29,6 +29,43 @@ test('operator selects a persistent light or dark interface theme', async ({ pag
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 })
 
+test('operator selects track and hold after importing a legacy configuration', async ({ page }) => {
+  const fixture = await readFile('../test/fixtures/janus/config_same4_v3_good.txt', 'utf8')
+  const legacy = fixture
+    .split(/\r?\n/)
+    .filter((line) => !/^PeakDetectorMode\s/.test(line))
+    .join('\n')
+    .replace(/^HG_Gain\s+55/m, 'HG_Gain 42')
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Ready', exact: true })).toBeVisible()
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'legacy.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(legacy),
+  })
+  await page.getByRole('tab', { name: 'Spectroscopy', exact: true }).click()
+  const mode = page.getByRole('combobox', { name: 'PeakDetectorMode', exact: true })
+  await expect(mode).toHaveValue('PEAK_STRETCH')
+  await page.getByRole('button', { name: 'View raw configuration' }).click()
+  await expect(page.getByLabel('JANUS configuration source')).toHaveValue(legacy)
+  await page.getByRole('button', { name: 'Use parameter editor' }).click()
+  await mode.selectOption('TRACK&HOLD')
+  await mode.selectOption('PEAK_STRETCH')
+  await mode.selectOption('TRACK&HOLD')
+  await page.getByRole('tab', { name: 'RunCtrl', exact: true }).click()
+  await page.locator('#persist-histograms').uncheck()
+
+  const request = page.waitForRequest((request) => request.url().endsWith('.RunService/StartRun'))
+  await page.getByRole('button', { name: 'Start run', exact: true }).click()
+  const configuration = (await request).postDataJSON().janusConfiguration as string
+  expect(configuration).toMatch(/^HG_Gain\s+42/m)
+  expect(configuration).toMatch(/^PeakDetectorMode\s+TRACK&HOLD/m)
+  expect(configuration.match(/^PeakDetectorMode\s/gm)).toHaveLength(1)
+  await expect(page.getByRole('heading', { name: 'Running', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Stop and drain' }).click()
+  await expect(page.getByRole('heading', { name: 'Ready', exact: true })).toBeVisible()
+})
+
 test('operator completes a simulated run and downloads its persisted artifact', async ({
   page,
 }) => {

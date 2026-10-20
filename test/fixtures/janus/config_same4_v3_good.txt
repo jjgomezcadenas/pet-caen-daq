@@ -109,6 +109,7 @@ ZS_Threshold_HG                    50                   # Threshold for Zero Sup
 HG_ShapingTime                     87.5 ns              # Shaping Time of the slow shaper (High Gain). Options: 87.5 ns, 75 ns, 62.5 ns, 50 ns, 37.5 ns, 25 ns, 12.5 ns
 LG_ShapingTime                     87.5 ns              # Shaping Time of the slow shaper (Low Gain). Options: 87.5 ns, 75 ns, 62.5 ns, 50 ns, 37.5 ns, 25 ns, 12.5 ns
 HoldDelay                          300 ns               # Delay between bunch trigger (start of peak detection) and hold (stop of peak detection)
+PeakDetectorMode                   PEAK_STRETCH         # Slow-shaper sampling: PEAK_STRETCH holds the maximum between bunch trigger and hold; TRACK&HOLD holds the value at the hold. Options: PEAK_STRETCH, TRACK&HOLD
 MuxClkPeriod                       300 ns               # Multiplexer readout speed. Best setting = 300 ns
 EHistoNbin                         4K                   # Number of channels (bins) in the PHA histogram. Options: DISABLED, 256, 512, 1K, 2K, 4K, 8K
 ToAHistoNbin                       4K                   # Number of channels (bins) in the ToA histogram. Options: DISABLED, 256, 512, 1K, 2K, 4K, 8K, 16K

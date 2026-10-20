@@ -19,7 +19,7 @@ func TestParseProductionConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if got, want := len(document.Assignments), 103; got != want {
+	if got, want := len(document.Assignments), 104; got != want {
 		t.Fatalf("assignment count = %d, want %d", got, want)
 	}
 	classified, err := document.Classify()
