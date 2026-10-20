@@ -400,7 +400,10 @@ const configurationNotice = computed(() => {
 })
 const appliedConfigurationLabel = computed(() => {
   const applied = daq.appliedConfiguration.value
-  if (!applied) return 'No configuration applied to the boards'
+  if (!applied)
+    return daq.snapshot.value?.state === SystemState.FAULT
+      ? 'Board configuration is unknown; reconnect hardware before applying a configuration'
+      : 'No configuration applied to the boards'
   const when = localDateTime(applied.appliedAt)
   const who = applied.requestedBy ? ` by ${applied.requestedBy}` : ''
   switch (applied.source) {

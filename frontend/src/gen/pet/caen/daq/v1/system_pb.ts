@@ -1289,7 +1289,8 @@ export type TelemetrySnapshot = Message<'pet.caen.daq.v1.TelemetrySnapshot'> & {
   discoveryProgress?: DiscoveryProgress | undefined
 
   /**
-   * Absent while disconnected and after a configuration failure.
+   * Absent while disconnected and after a configuration write or scan
+   * restoration failure leaves the board configuration unknown.
    *
    * @generated from field: pet.caen.daq.v1.AppliedConfiguration applied_configuration = 18;
    */

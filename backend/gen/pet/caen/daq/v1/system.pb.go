@@ -3231,7 +3231,8 @@ type TelemetrySnapshot struct {
 	CurrentHoldDelayScan  *HoldDelayScan         `protobuf:"bytes,15,opt,name=current_hold_delay_scan,json=currentHoldDelayScan,proto3" json:"current_hold_delay_scan,omitempty"`
 	ConfigurationProgress *ConfigurationProgress `protobuf:"bytes,16,opt,name=configuration_progress,json=configurationProgress,proto3" json:"configuration_progress,omitempty"`
 	DiscoveryProgress     *DiscoveryProgress     `protobuf:"bytes,17,opt,name=discovery_progress,json=discoveryProgress,proto3" json:"discovery_progress,omitempty"`
-	// Absent while disconnected and after a configuration failure.
+	// Absent while disconnected and after a configuration write or scan
+	// restoration failure leaves the board configuration unknown.
 	AppliedConfiguration *AppliedConfiguration `protobuf:"bytes,18,opt,name=applied_configuration,json=appliedConfiguration,proto3" json:"applied_configuration,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache

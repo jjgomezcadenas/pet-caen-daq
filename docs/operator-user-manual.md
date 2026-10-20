@@ -1033,7 +1033,7 @@ Scans:
 
 A scan takes no configuration from the editor. It runs on, and restores afterwards, the configuration most recently applied to the boards by **Connect hardware**, **Apply config**, or **Start run**. The panel at the top of the Scans workspace states which one that is (**Applied with Apply config**, **Applied by run** `<n>`, or **Applied at hardware connect**, with time and operator). If the editor has been changed since, the notice **Configuration changed since last apply/run** appears in that panel and beside each **Start scan** button; select **Apply config** in the run controls first if the scan should use the edited values. The notice does not block the scan.
 
-Do not assume restoration succeeded after a failed scan. Inspect final status, system state, and diagnostics.
+Do not assume restoration succeeded after a failed scan. If restoration fails, the scan reports **Failed**, the system reports **Fault**, and the applied configuration is cleared and shown as **unknown**. This also applies when restoration fails after cancellation. Reconnect the hardware to establish a known configuration. A successful restoration preserves the applied record, including after cancellation or a scan error. Inspect final status, system state, and diagnostics.
 
 ## 9.1 Threshold staircase
 

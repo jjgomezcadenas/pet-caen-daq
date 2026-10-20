@@ -368,7 +368,8 @@ message TelemetrySnapshot {
   HoldDelayScan current_hold_delay_scan = 15;
   ConfigurationProgress configuration_progress = 16;
   DiscoveryProgress discovery_progress = 17;
-  // Absent while disconnected and after a configuration failure.
+  // Absent while disconnected and after a configuration write or scan
+  // restoration failure leaves the board configuration unknown.
   AppliedConfiguration applied_configuration = 18;
 }
 

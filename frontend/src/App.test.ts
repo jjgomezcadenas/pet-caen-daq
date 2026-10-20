@@ -12,6 +12,7 @@ import {
   DiscoveryStage,
   HealthStatus,
   RunType,
+  ScanState,
   RunSummarySchema,
   SystemState,
   TelemetrySnapshotSchema,
@@ -510,6 +511,27 @@ describe('operator dashboard', () => {
     expect(wrapper.get('#system-heading').text()).toBe('Ready')
     expect(wrapper.get('.applied-configuration').text()).toContain('Applied with Apply config')
     expect(wrapper.find('.applied-configuration .config-notice').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows the board configuration as unknown after a failed scan restore', async () => {
+    const api = dashboardApi(SystemState.FAULT)
+    vi.mocked(api.snapshot).mockResolvedValue(
+      create(TelemetrySnapshotSchema, {
+        state: SystemState.FAULT,
+        latestCompletedScan: {
+          scanId: '17',
+          state: ScanState.FAILED,
+          terminationReason: 'restore board 0 configuration: readback mismatch',
+        },
+      }),
+    )
+    const wrapper = mount(App, { props: { api } })
+    await flushPromises()
+    expect(wrapper.get('.applied-configuration').text()).toContain('Board configuration is unknown')
+    expect(wrapper.get('.scan-configuration').text()).toContain('Board configuration is unknown')
+    expect(wrapper.get('.applied-configuration').text()).not.toContain('No configuration applied')
+    expect(wrapper.get('button.apply-configuration').attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
 
