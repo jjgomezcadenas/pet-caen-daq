@@ -63,6 +63,23 @@ func TestHoldDelayScanCollectsEventsFromSimulator(t *testing.T) {
 		if highGainEvents != request.EventsPerDelay {
 			t.Fatalf("point %d high-gain spectrum contains %d events, want %d", index, highGainEvents, request.EventsPerDelay)
 		}
+		var rebinned [holddelay.ChannelCount][holddelay.BinCount]uint32
+		var lowGainEvents uint32
+		for _, bin := range point.FullSpectra {
+			if bin.LowGain {
+				if bin.Channel == 0 {
+					lowGainEvents += bin.Count
+				}
+				continue
+			}
+			rebinned[bin.Channel][holddelay.EnergyBin(bin.Value, false)] += bin.Count
+		}
+		if rebinned != point.HighGainBins {
+			t.Fatalf("point %d full-resolution high gain does not rebin to the 512-bin spectra", index)
+		}
+		if lowGainEvents != request.EventsPerDelay {
+			t.Fatalf("point %d low-gain spectrum of channel 0 contains %d events, want %d", index, lowGainEvents, request.EventsPerDelay)
+		}
 	}
 	if peakBin(points[1].HighGainBins[0]) <= peakBin(points[0].HighGainBins[0]) {
 		t.Fatalf("hold-delay spectrum did not move: peaks %d then %d",

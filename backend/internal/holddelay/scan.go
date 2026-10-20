@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jmbenlloch/pet-caen-daq/backend/internal/dt5202"
@@ -40,6 +41,46 @@ type Point struct {
 	Elapsed         time.Duration                  `json:"elapsed"`
 	HighGainBins    [ChannelCount][BinCount]uint32 `json:"high_gain_bins"`
 	MissingChannels [ChannelCount]uint32           `json:"missing_channels"`
+	// FullSpectra holds the ADC values at full resolution for both gains,
+	// sparse and sorted, split by whether the channel's discriminator fired.
+	// HighGainBins is the JANUS-compatible 512-bin view of the same data.
+	FullSpectra []SpectrumBin `json:"full_spectra,omitempty"`
+}
+
+// SpectrumBin counts the observations of one ADC value in one channel and gain.
+type SpectrumBin struct {
+	Channel       uint8  `json:"channel"`
+	LowGain       bool   `json:"low_gain"`
+	Discriminator bool   `json:"discriminator"`
+	Value         uint16 `json:"value"`
+	Count         uint32 `json:"count"`
+}
+
+type spectrumKey struct {
+	channel                uint8
+	lowGain, discriminator bool
+	value                  uint16
+}
+
+func sortedSpectra(counts map[spectrumKey]uint32) []SpectrumBin {
+	bins := make([]SpectrumBin, 0, len(counts))
+	for key, count := range counts {
+		bins = append(bins, SpectrumBin{key.channel, key.lowGain, key.discriminator, key.value, count})
+	}
+	sort.Slice(bins, func(i, j int) bool {
+		a, b := bins[i], bins[j]
+		if a.Channel != b.Channel {
+			return a.Channel < b.Channel
+		}
+		if a.LowGain != b.LowGain {
+			return !a.LowGain
+		}
+		if a.Discriminator != b.Discriminator {
+			return !a.Discriminator
+		}
+		return a.Value < b.Value
+	})
+	return bins
 }
 
 func (r Request) Validate() error {
@@ -153,6 +194,8 @@ func scanPoint(ctx context.Context, hardware Hardware, chain, node uint16, reque
 	started := time.Now()
 	pointCtx, cancel := context.WithTimeout(ctx, request.PointTimeout)
 	defer cancel()
+	spectra := make(map[spectrumKey]uint32)
+	defer func() { point.FullSpectra = sortedSpectra(spectra) }()
 	for point.EventsCollected < request.EventsPerDelay {
 		_, events, readErr := hardware.ReadRawStreamBatch(pointCtx)
 		if readErr != nil {
@@ -171,9 +214,13 @@ func scanPoint(ctx context.Context, hardware Hardware, chain, node uint16, reque
 			}
 			seen := [ChannelCount]bool{}
 			for _, energy := range event.Energies {
+				if energy.HasLowGain {
+					spectra[spectrumKey{energy.Channel, true, energy.Discriminator, energy.LowGain}]++
+				}
 				if !energy.HasHighGain {
 					continue
 				}
+				spectra[spectrumKey{energy.Channel, false, energy.Discriminator, energy.HighGain}]++
 				seen[energy.Channel] = true
 				point.HighGainBins[energy.Channel][EnergyBin(energy.HighGain, range14)]++
 			}

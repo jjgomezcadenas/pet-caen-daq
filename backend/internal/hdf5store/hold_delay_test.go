@@ -19,6 +19,10 @@ func TestWriteHoldDelayStoresSparseSpectra(t *testing.T) {
 	}
 	point.HighGainBins[4][123] = 9
 	point.MissingChannels[7] = 2
+	point.FullSpectra = []holddelay.SpectrumBin{
+		{Channel: 4, Value: 1977, Count: 9},
+		{Channel: 4, LowGain: true, Discriminator: true, Value: 301, Count: 6},
+	}
 	if err := WriteHoldDelay(path, []byte(`{"scan_id":"81"}`), []holddelay.Point{point}); err != nil {
 		t.Fatal(err)
 	}
@@ -59,5 +63,17 @@ func TestWriteHoldDelayStoresSparseSpectra(t *testing.T) {
 	readDatasetRows(t, missing, &missingRows, 1)
 	if missingRows[0].Channel != 7 || missingRows[0].Count != 2 {
 		t.Fatalf("missing row = %#v", missingRows[0])
+	}
+
+	spectra, err := file.OpenDataset("hold_delay/full_spectra")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer spectra.Close()
+	var spectrumRows []holdDelaySpectrumRow
+	readDatasetRows(t, spectra, &spectrumRows, 2)
+	if spectrumRows[0] != (holdDelaySpectrumRow{Channel: 4, Value: 1977, Count: 9}) ||
+		spectrumRows[1] != (holdDelaySpectrumRow{Channel: 4, Gain: 1, Discriminator: 1, Value: 301, Count: 6}) {
+		t.Fatalf("spectrum rows = %#v", spectrumRows)
 	}
 }

@@ -94,3 +94,63 @@ func TestRunCollectsHighGainDistributionsAtEveryDelay(t *testing.T) {
 		t.Fatal("hold-delay scan did not synchronize before acquisition")
 	}
 }
+
+func TestRunRecordsFullResolutionSpectraForBothGains(t *testing.T) {
+	hardware := &fakeHardware{registers: map[uint32]uint32{}, events: []dt5215.StreamEvent{spectroscopyEvent(160)}}
+	request := Request{MinimumDelayNS: 0, MaximumDelayNS: 0, StepNS: 8, EventsPerDelay: 10, PointTimeout: time.Second}
+	var points []Point
+	if err := Run(context.Background(), hardware, 1, 2, request, false, func(point Point) error {
+		points = append(points, point)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(points) != 1 {
+		t.Fatalf("points = %d, want 1", len(points))
+	}
+	var high, low []SpectrumBin
+	for _, bin := range points[0].FullSpectra {
+		if bin.LowGain {
+			low = append(low, bin)
+		} else {
+			high = append(high, bin)
+		}
+	}
+	if len(high) != 1 || high[0].Channel != 0 || high[0].Value != 160 || high[0].Count != 10 {
+		t.Fatalf("high-gain spectrum = %+v, want ten entries of 160 in channel 0", high)
+	}
+	if len(low) != 1 || low[0].Value != 7 || low[0].Count != 10 {
+		t.Fatalf("low-gain spectrum = %+v, want ten entries of 7", low)
+	}
+	assertSpectraMatchJANUSBins(t, points[0], false)
+}
+
+func TestSortedSpectraOrdersByChannelGainDiscriminatorAndValue(t *testing.T) {
+	bins := sortedSpectra(map[spectrumKey]uint32{
+		{1, false, false, 5}: 1, {0, true, false, 3}: 2, {0, false, true, 9}: 3, {0, false, false, 9}: 4, {0, false, false, 2}: 5,
+	})
+	want := []SpectrumBin{{0, false, false, 2, 5}, {0, false, false, 9, 4}, {0, false, true, 9, 3}, {0, true, false, 3, 2}, {1, false, false, 5, 1}}
+	if len(bins) != len(want) {
+		t.Fatalf("bins = %+v", bins)
+	}
+	for index := range want {
+		if bins[index] != want[index] {
+			t.Fatalf("bin %d = %+v, want %+v", index, bins[index], want[index])
+		}
+	}
+}
+
+// assertSpectraMatchJANUSBins checks that rebinning the full-resolution high
+// gain reproduces the JANUS-compatible 512-bin spectra exactly.
+func assertSpectraMatchJANUSBins(t *testing.T, point Point, range14 bool) {
+	t.Helper()
+	var rebinned [ChannelCount][BinCount]uint32
+	for _, bin := range point.FullSpectra {
+		if !bin.LowGain {
+			rebinned[bin.Channel][EnergyBin(bin.Value, range14)] += bin.Count
+		}
+	}
+	if rebinned != point.HighGainBins {
+		t.Fatal("full-resolution high gain does not rebin to HighGainBins")
+	}
+}

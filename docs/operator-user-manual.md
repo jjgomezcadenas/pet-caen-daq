@@ -1105,6 +1105,13 @@ At each point the backend:
 
 The dataset records both requested and effective delay. A readback mismatch fails the scan.
 
+The HDF5 artifact (`hold-delay.h5`, group `hold_delay`) contains:
+
+- `points` — requested and effective delay, events collected and elapsed time per point;
+- `nonzero_hg_bins` — the 512-bin high-gain spectra shown in the heatmap (JANUS binning: 16 ADC codes per bin, 32 in the 14-bit range);
+- `full_spectra` — the same events at full ADC resolution for both gains, one row per point, channel, gain (0 high, 1 low), discriminator flag (1 when that channel's discriminator fired in the event) and ADC value, with its count. Use it to fit single-photoelectron peaks, whose spacing can be only a few 512-bin bins;
+- `missing_channels` — events in which a channel carried no high-gain value.
+
 ### Running, cancelling, and plot
 
 Select **Start scan**. Progress reports completed and total delay points.

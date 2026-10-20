@@ -22,6 +22,14 @@ type holdDelayBinRow struct {
 	Bin        uint16
 	Count      uint32
 }
+type holdDelaySpectrumRow struct {
+	PointIndex    uint32
+	Channel       uint8
+	Gain          uint8 // 0 high, 1 low
+	Discriminator uint8 // 1 when the channel's discriminator fired
+	Value         uint16
+	Count         uint32
+}
 type holdDelayMissingRow struct {
 	PointIndex uint32
 	Channel    uint8
@@ -69,10 +77,26 @@ func WriteHoldDelay(path string, metadata []byte, points []holddelay.Point) (err
 		return err
 	}
 	defer missingDataset.Close()
+	spectrumDataset, err := createTable(group, "full_spectra", compoundHoldDelaySpectrum(), compression)
+	if err != nil {
+		return err
+	}
+	defer spectrumDataset.Close()
 	var pointRows []holdDelayPointRow
 	var binRows []holdDelayBinRow
 	var missingRows []holdDelayMissingRow
+	var spectrumRows []holdDelaySpectrumRow
 	for pointIndex, point := range points {
+		for _, bin := range point.FullSpectra {
+			row := holdDelaySpectrumRow{PointIndex: uint32(pointIndex), Channel: bin.Channel, Value: bin.Value, Count: bin.Count}
+			if bin.LowGain {
+				row.Gain = 1
+			}
+			if bin.Discriminator {
+				row.Discriminator = 1
+			}
+			spectrumRows = append(spectrumRows, row)
+		}
 		pointRows = append(pointRows, holdDelayPointRow{point.DelayNS, point.EffectiveDelay, point.EventsCollected, uint64(point.Elapsed)})
 		for channel := 0; channel < holddelay.ChannelCount; channel++ {
 			if count := point.MissingChannels[channel]; count > 0 {
@@ -85,7 +109,7 @@ func WriteHoldDelay(path string, metadata []byte, points []holddelay.Point) (err
 			}
 		}
 	}
-	for dataset, rows := range map[*hdf5.Dataset]any{pointDataset: pointRows, binDataset: binRows, missingDataset: missingRows} {
+	for dataset, rows := range map[*hdf5.Dataset]any{pointDataset: pointRows, binDataset: binRows, missingDataset: missingRows, spectrumDataset: spectrumRows} {
 		target := table{dataset: dataset}
 		switch values := rows.(type) {
 		case []holdDelayPointRow:
@@ -93,6 +117,8 @@ func WriteHoldDelay(path string, metadata []byte, points []holddelay.Point) (err
 		case []holdDelayBinRow:
 			err = appendRows(&target, values)
 		case []holdDelayMissingRow:
+			err = appendRows(&target, values)
+		case []holdDelaySpectrumRow:
 			err = appendRows(&target, values)
 		}
 		if err != nil {
@@ -125,6 +151,17 @@ func compoundHoldDelayMissing() *hdf5.CompoundType {
 	return mustCompound(unsafe.Sizeof(value), []field{
 		{"point_index", unsafe.Offsetof(value.PointIndex), hdf5.T_STD_U32LE},
 		{"channel", unsafe.Offsetof(value.Channel), hdf5.T_STD_U8LE},
+		{"count", unsafe.Offsetof(value.Count), hdf5.T_STD_U32LE},
+	})
+}
+func compoundHoldDelaySpectrum() *hdf5.CompoundType {
+	var value holdDelaySpectrumRow
+	return mustCompound(unsafe.Sizeof(value), []field{
+		{"point_index", unsafe.Offsetof(value.PointIndex), hdf5.T_STD_U32LE},
+		{"channel", unsafe.Offsetof(value.Channel), hdf5.T_STD_U8LE},
+		{"gain", unsafe.Offsetof(value.Gain), hdf5.T_STD_U8LE},
+		{"discriminator", unsafe.Offsetof(value.Discriminator), hdf5.T_STD_U8LE},
+		{"value", unsafe.Offsetof(value.Value), hdf5.T_STD_U16LE},
 		{"count", unsafe.Offsetof(value.Count), hdf5.T_STD_U32LE},
 	})
 }
