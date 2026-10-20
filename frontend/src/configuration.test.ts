@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  configurationEditorFields,
   isBooleanField,
   maskBits,
   masksFromBits,
@@ -47,6 +48,41 @@ const source = [
 ].join('\n')
 
 describe('JANUS configuration editor', () => {
+  it('offers the omitted peak mode without changing imported source', () => {
+    const legacy = '# Spectroscopy\r\nHG_Gain 42 # keep my gain\r\n'
+    const document = parseConfiguration(legacy)
+    const mode = configurationEditorFields(document).find(
+      (field) => field.name === 'PeakDetectorMode',
+    )!
+    expect(mode).toMatchObject({
+      value: 'PEAK_STRETCH',
+      section: 'Spectroscopy',
+      options: ['PEAK_STRETCH', 'TRACK&HOLD'],
+      line: 0,
+    })
+    expect(document.source).toBe(legacy)
+    expect(document.fields.map((field) => field.name)).toEqual(['HG_Gain'])
+
+    const changed = updateConfiguration(document, mode, 'TRACK&HOLD')
+    expect(changed.source).toBe(`${legacy}PeakDetectorMode TRACK&HOLD # operator override\r\n`)
+    const explicit = configurationEditorFields(changed).find(
+      (field) => field.name === 'PeakDetectorMode',
+    )!
+    expect(explicit.line).toBeGreaterThan(0)
+    const restored = updateConfiguration(changed, explicit, 'PEAK_STRETCH')
+    expect(restored.source.match(/^PeakDetectorMode\s/gm)).toHaveLength(1)
+    expect(restored.source).toContain('PeakDetectorMode PEAK_STRETCH')
+  })
+
+  it.each(['PEAK_STRETCH', 'TRACK&HOLD', 'INVALID'])(
+    'preserves an explicit peak mode of %s instead of replacing it with a default',
+    (value) => {
+      const document = parseConfiguration(`PeakDetectorMode ${value} # explicit\n`)
+      expect(configurationEditorFields(document)).toEqual(document.fields)
+      expect(configurationEditorFields(document)[0].value).toBe(value)
+    },
+  )
+
   it('discovers sections, choices, switches, and board overrides', () => {
     const document = parseConfiguration(source)
     expect(document.fields).toHaveLength(4)
