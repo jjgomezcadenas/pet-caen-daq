@@ -1804,9 +1804,12 @@ type AppliedConfiguration struct {
 	Source      AppliedConfigurationSource `protobuf:"varint,3,opt,name=source,proto3,enum=pet.caen.daq.v1.AppliedConfigurationSource" json:"source,omitempty"`
 	// Run number of the run that applied the configuration; empty unless the
 	// source is a run whose acquisition started.
-	RunId         string `protobuf:"bytes,4,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	BoardCount    uint32 `protobuf:"varint,5,opt,name=board_count,json=boardCount,proto3" json:"board_count,omitempty"`
-	HvAuthorized  bool   `protobuf:"varint,6,opt,name=hv_authorized,json=hvAuthorized,proto3" json:"hv_authorized,omitempty"`
+	RunId      string `protobuf:"bytes,4,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	BoardCount uint32 `protobuf:"varint,5,opt,name=board_count,json=boardCount,proto3" json:"board_count,omitempty"`
+	// True when the backend runs with -authorize-hv-config, so this
+	// application also wrote the HV setpoints (HV_Vbias, HV_Imax, temperature
+	// feedback). When false the boards keep their previous HV setpoints.
+	HvAuthorized  bool `protobuf:"varint,6,opt,name=hv_authorized,json=hvAuthorized,proto3" json:"hv_authorized,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

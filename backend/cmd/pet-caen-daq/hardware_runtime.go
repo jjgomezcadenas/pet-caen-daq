@@ -418,13 +418,26 @@ func (r *hardwareRuntime) StateSnapshot() acquisition.StateSnapshot {
 	return r.coordinator.StateSnapshot()
 }
 
+// Configure applies a run configuration, reusing the current board state when
+// it was produced by an identical document.
 func (r *hardwareRuntime) Configure(ctx context.Context, document *janusconfig.Document, actor string) (acquisition.ConfigurationResult, error) {
+	return r.configure(ctx, document, actor, false)
+}
+
+// ConfigureForced always writes and reads back the configuration, so an
+// explicit apply puts the boards in a known state even when the document is
+// unchanged since the last configuration.
+func (r *hardwareRuntime) ConfigureForced(ctx context.Context, document *janusconfig.Document, actor string) (acquisition.ConfigurationResult, error) {
+	return r.configure(ctx, document, actor, true)
+}
+
+func (r *hardwareRuntime) configure(ctx context.Context, document *janusconfig.Document, actor string, force bool) (acquisition.ConfigurationResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.configurator == nil {
 		return acquisition.ConfigurationResult{}, fmt.Errorf("hardware is disconnected")
 	}
-	if sameConfiguration(r.configuredFor, document) {
+	if !force && sameConfiguration(r.configuredFor, document) {
 		fmt.Fprintf(r.output, "hardware configuration reused requested_by=%s devices=%d\n", actor, len(r.configured.Plans))
 		return cloneConfigurationResult(r.configured), nil
 	}

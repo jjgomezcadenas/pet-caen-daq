@@ -361,8 +361,11 @@ type RunServiceClient interface {
 	DownloadArtifact(context.Context, *connect.Request[v1.DownloadArtifactRequest]) (*connect.ServerStreamForClient[v1.DownloadArtifactResponse], error)
 	GetHistograms(context.Context, *connect.Request[v1.GetHistogramsRequest]) (*connect.Response[v1.GetHistogramsResponse], error)
 	// Validates, plans, audits, and writes a configuration to the connected
-	// boards exactly as StartRun does, without starting acquisition, allocating
-	// a run number, or creating run files. Scans and the HV switch then use it.
+	// boards as StartRun does, without starting acquisition, allocating a run
+	// number, or creating run files. Unlike StartRun it always rewrites the
+	// registers, even when the boards already hold an identical configuration.
+	// HV setpoints are written only when the backend runs with
+	// -authorize-hv-config. Scans and the HV switch then use it.
 	ApplyConfiguration(context.Context, *connect.Request[v1.ApplyConfigurationRequest]) (*connect.Response[v1.ApplyConfigurationResponse], error)
 }
 
@@ -490,8 +493,11 @@ type RunServiceHandler interface {
 	DownloadArtifact(context.Context, *connect.Request[v1.DownloadArtifactRequest], *connect.ServerStream[v1.DownloadArtifactResponse]) error
 	GetHistograms(context.Context, *connect.Request[v1.GetHistogramsRequest]) (*connect.Response[v1.GetHistogramsResponse], error)
 	// Validates, plans, audits, and writes a configuration to the connected
-	// boards exactly as StartRun does, without starting acquisition, allocating
-	// a run number, or creating run files. Scans and the HV switch then use it.
+	// boards as StartRun does, without starting acquisition, allocating a run
+	// number, or creating run files. Unlike StartRun it always rewrites the
+	// registers, even when the boards already hold an identical configuration.
+	// HV setpoints are written only when the backend runs with
+	// -authorize-hv-config. Scans and the HV switch then use it.
 	ApplyConfiguration(context.Context, *connect.Request[v1.ApplyConfigurationRequest]) (*connect.Response[v1.ApplyConfigurationResponse], error)
 }
 

@@ -62,10 +62,14 @@ type RunCatalog interface {
 
 type RunService struct {
 	daqv1connect.UnimplementedRunServiceHandler
-	Controller       RunController
-	Telemetry        SnapshotPublisher
-	Now              func() time.Time
-	Configure        ConfigurationApplier
+	Controller RunController
+	Telemetry  SnapshotPublisher
+	Now        func() time.Time
+	Configure  ConfigurationApplier
+	// ForceConfigure writes the configuration even when the boards already
+	// hold an identical one. ApplyConfiguration uses it when set, so an
+	// explicit apply always rewrites and reads back the registers.
+	ForceConfigure   ConfigurationApplier
 	Boards           []configaudit.BoardEvidence
 	Concentrator     *dt5215.ConcentratorInfo
 	HardwareMetadata HardwareMetadataProvider
@@ -604,7 +608,7 @@ func (s *RunService) StartRun(ctx context.Context, request *connect.Request[daqv
 	if s.AllocateRunID == nil {
 		return nil, serviceError(connect.CodeFailedPrecondition, "RUN_ID_ALLOCATION_UNAVAILABLE", fmt.Errorf("run catalog ID allocation is not configured"))
 	}
-	prepared, err := s.applyConfiguration(ctx, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN)
+	prepared, err := s.applyConfiguration(ctx, s.Configure, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +678,11 @@ func (s *RunService) ApplyConfiguration(ctx context.Context, request *connect.Re
 	default:
 		return nil, serviceError(connect.CodeFailedPrecondition, "SYSTEM_NOT_READY", fmt.Errorf("configuration cannot be applied in state %s", state))
 	}
-	if _, err := s.applyConfiguration(ctx, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY); err != nil {
+	configure := s.Configure
+	if s.ForceConfigure != nil {
+		configure = s.ForceConfigure
+	}
+	if _, err := s.applyConfiguration(ctx, configure, message.GetJanusConfiguration(), message.GetRequestedBy(), daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY); err != nil {
 		return nil, err
 	}
 	snapshot := s.publish(nil)
@@ -696,12 +704,12 @@ type preparedConfiguration struct {
 // applyConfiguration is the configuration half of StartRun shared with
 // ApplyConfiguration. On success the boards hold the requested configuration,
 // the system is ready, and the published snapshot records the application.
-func (s *RunService) applyConfiguration(ctx context.Context, text, requestedBy string, source daqv1.AppliedConfigurationSource) (preparedConfiguration, error) {
+func (s *RunService) applyConfiguration(ctx context.Context, configure ConfigurationApplier, text, requestedBy string, source daqv1.AppliedConfigurationSource) (preparedConfiguration, error) {
 	var prepared preparedConfiguration
 	if issues := ValidateJANUSConfiguration(text); len(issues) != 0 {
 		return prepared, serviceError(connect.CodeInvalidArgument, "INVALID_CONFIGURATION", fmt.Errorf("configuration is invalid: %s", issues[0].GetMessage()))
 	}
-	if s.Configure == nil {
+	if configure == nil {
 		return prepared, serviceError(connect.CodeFailedPrecondition, "CONFIGURATION_UNAVAILABLE", fmt.Errorf("run configuration application is unavailable"))
 	}
 	document, err := janusconfig.Parse(bytes.NewBufferString(text))
@@ -716,7 +724,7 @@ func (s *RunService) applyConfiguration(ctx context.Context, text, requestedBy s
 	if err != nil {
 		return prepared, serviceError(connect.CodeInvalidArgument, "INVALID_HISTOGRAM_CONFIGURATION", err)
 	}
-	prepared.configured, err = s.Configure(ctx, document, requestedBy)
+	prepared.configured, err = configure(ctx, document, requestedBy)
 	if err != nil {
 		if s.Controller.StateSnapshot().State == acquisition.StateFault {
 			// A partial write leaves the board configuration unknown.

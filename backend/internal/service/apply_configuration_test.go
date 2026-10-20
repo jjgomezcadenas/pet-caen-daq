@@ -149,3 +149,72 @@ func TestStartRunRecordsAppliedConfigurationWithRunNumber(t *testing.T) {
 		t.Fatalf("apply during run code=%v error=%v", connect.CodeOf(err), err)
 	}
 }
+
+// An audit rejection happens after the boards were written, so the record
+// must describe what reached them even though the request fails.
+func TestAuditRejectionStillRecordsTheWrittenConfiguration(t *testing.T) {
+	rejected := validTopology + "HG_ShapingTime 50 ns\n"
+	deferred := func(context.Context, *janusconfig.Document, string) (acquisition.ConfigurationResult, error) {
+		return acquisition.ConfigurationResult{Plans: []dt5202.ConfigurationPlan{{Board: 0, Deferred: []string{"HG_ShapingTime"}}}}, nil
+	}
+	for _, test := range []struct {
+		name   string
+		call   func(*RunService) error
+		source daqv1.AppliedConfigurationSource
+	}{
+		{"apply", func(service *RunService) error {
+			_, err := service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{RequestedBy: "operator", JanusConfiguration: rejected}))
+			return err
+		}, daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_APPLY},
+		{"start run", func(service *RunService) error {
+			_, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: rejected}))
+			return err
+		}, daqv1.AppliedConfigurationSource_APPLIED_CONFIGURATION_SOURCE_RUN},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			controller := &fakeRunController{state: acquisition.StateReady}
+			service := newRunService(t, controller)
+			service.Configure = deferred
+			service.AllocateRunID = func(context.Context) (string, error) {
+				t.Fatal("run number allocated after an audit rejection")
+				return "", nil
+			}
+			err := test.call(service)
+			if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "CONFIGURATION_AUDIT_FAILED") || !strings.Contains(err.Error(), "HG_ShapingTime") {
+				t.Fatalf("code=%v error=%v", connect.CodeOf(err), err)
+			}
+			applied := service.Telemetry.Snapshot().GetAppliedConfiguration()
+			if applied.GetSource() != test.source || applied.GetRunId() != "" || applied.GetRequestedBy() != "operator" || applied.GetBoardCount() != 1 {
+				t.Fatalf("applied configuration = %+v", applied)
+			}
+			if controller.active != "" || controller.options.RequestedConfiguration != "" {
+				t.Fatalf("acquisition started after an audit rejection: %+v", controller.options)
+			}
+		})
+	}
+}
+
+func TestApplyConfigurationForcesTheWriteWhileStartRunMayReuse(t *testing.T) {
+	controller := &fakeRunController{state: acquisition.StateReady}
+	service := newRunService(t, controller)
+	var reusable, forced int
+	service.Configure = func(context.Context, *janusconfig.Document, string) (acquisition.ConfigurationResult, error) {
+		reusable++
+		return acquisition.ConfigurationResult{Plans: []dt5202.ConfigurationPlan{{Board: 0}}}, nil
+	}
+	service.ForceConfigure = func(context.Context, *janusconfig.Document, string) (acquisition.ConfigurationResult, error) {
+		forced++
+		return acquisition.ConfigurationResult{Plans: []dt5202.ConfigurationPlan{{Board: 0}}}, nil
+	}
+	for range 2 {
+		if _, err := service.ApplyConfiguration(context.Background(), connect.NewRequest(&daqv1.ApplyConfigurationRequest{RequestedBy: "operator", JanusConfiguration: validTopology})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := service.StartRun(context.Background(), connect.NewRequest(&daqv1.StartRunRequest{RequestedBy: "operator", JanusConfiguration: validTopology})); err != nil {
+		t.Fatal(err)
+	}
+	if forced != 2 || reusable != 1 {
+		t.Fatalf("forced=%d reusable=%d, want 2 forced applies and 1 run configuration", forced, reusable)
+	}
+}
