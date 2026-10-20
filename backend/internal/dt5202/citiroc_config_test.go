@@ -3,6 +3,8 @@ package dt5202
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -109,6 +111,15 @@ func TestPlanPeakDetectorMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	baseline, err := janusconfig.Parse(strings.NewReader(string(fixture)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Ensure the omitted case really has no assignment, independently of
+	// future fixture contents. Explicit modes are added only to test copies.
+	baseline.Assignments = slices.DeleteFunc(baseline.Assignments, func(a janusconfig.Assignment) bool {
+		return a.Name == "PeakDetectorMode"
+	})
 	// The fixture selects FastShaperInput LG-PA and HV_Adjust_Range 4.5.
 	peak := uint32(fersDefaultCitirocConfig | 1<<7)
 	for _, test := range []struct {
@@ -120,9 +131,23 @@ func TestPlanPeakDetectorMode(t *testing.T) {
 		{"track and hold", "PeakDetectorMode TRACK&HOLD", peak | 1<<2 | 1<<3},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			doc, parseErr := janusconfig.Parse(strings.NewReader(string(fixture) + "\n" + test.line + "\n"))
+			mode, parseErr := janusconfig.Parse(strings.NewReader(test.line))
 			if parseErr != nil {
 				t.Fatal(parseErr)
+			}
+			doc := &janusconfig.Document{Assignments: append(slices.Clone(baseline.Assignments), mode.Assignments...)}
+			assignments := 0
+			for _, a := range doc.Assignments {
+				if a.Name == "PeakDetectorMode" {
+					assignments++
+				}
+			}
+			wantAssignments := 1
+			if test.line == "" {
+				wantAssignments = 0
+			}
+			if assignments != wantAssignments {
+				t.Fatalf("PeakDetectorMode assignments = %d, want %d", assignments, wantAssignments)
 			}
 			if _, classifyErr := doc.Classify(); classifyErr != nil {
 				t.Fatalf("classify: %v", classifyErr)
@@ -131,6 +156,17 @@ func TestPlanPeakDetectorMode(t *testing.T) {
 				plan, planErr := PlanProductionConfiguration(doc, board)
 				if planErr != nil {
 					t.Fatal(planErr)
+				}
+				if test.line == "" {
+					explicit := &janusconfig.Document{Assignments: append(slices.Clone(doc.Assignments),
+						janusconfig.Assignment{Name: "PeakDetectorMode", Value: "PEAK_STRETCH"})}
+					explicitPlan, err := PlanProductionConfiguration(explicit, board)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(plan, explicitPlan) {
+						t.Fatalf("board %d: omitted mode and explicit PEAK_STRETCH produce different plans", board)
+					}
 				}
 				var register uint32
 				for _, write := range plan.Writes {
