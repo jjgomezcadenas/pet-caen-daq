@@ -535,6 +535,7 @@ func PlanProductionConfiguration(doc *janusconfig.Document, board int) (Configur
 		}
 	}
 
+	citirocModes := CitirocModes{FastShaperOnLowGain: fastShaper != 0, InputDACReference45V: hvRange != 0}
 	plan := ConfigurationPlan{Board: board, Writes: []RegisterWrite{
 		{ChannelMaskLow, mask0}, {ChannelMaskHigh, mask1}, {AcquisitionControl, acqControl},
 		{ChannelTriggerWidth, uint32(chWidth / 8)}, {TriggerLogicWidth, uint32(logicWidth / 8)},
@@ -549,6 +550,7 @@ func PlanProductionConfiguration(doc *janusconfig.Document, board int) (Configur
 		{CitirocSlowControl, 0}, {CitirocProbe, analogValue(analog0, probeChannel0)},
 		{CitirocSlowControl, 0x200}, {CitirocProbe, analogValue(analog1, probeChannel1)},
 		{DigitalProbe, digital0 | digital1<<8},
+		{CitirocConfig, citirocModes.Register()},
 	}}
 	lg, err := u32("LG_Gain", 8)
 	if err != nil {
@@ -614,7 +616,8 @@ func PlanProductionConfiguration(doc *janusconfig.Document, board int) (Configur
 			RegisterWrite{IndividualRegister(HVIndividualAdjustment, ch), hvValue})
 		citirocChannels[ch] = CitirocChannel{TimeFineThreshold: uint8(tfineChannels[ch]), ChargeFineThreshold: uint8(qfineChannels[ch]), HVAdjustment: uint16(hvValue), HighGain: uint8(hgChannels[ch]), LowGain: uint8(lgChannels[ch])}
 	}
-	common := CitirocCommon{DiscriminatorMask: qdMask0, LowShapingTime: uint8(lgShape), HighShapingTime: uint8(hgShape), ChargeCoarseThreshold: uint16(qd), TimeCoarseThreshold: uint16(td), FastShaperOnLowGain: fastShaper != 0, InputDACReference45V: hvRange != 0, PeakSensingExternalTrigger: true, OTAForceOn: true, NegativeTriggerPolarity: true}
+	common := CitirocCommon{DiscriminatorMask: qdMask0, LowShapingTime: uint8(lgShape), HighShapingTime: uint8(hgShape), ChargeCoarseThreshold: uint16(qd), TimeCoarseThreshold: uint16(td)}
+	citirocModes.ApplyTo(&common)
 	plan.Citiroc = SplitCitirocChannels(citirocChannels, common)
 	plan.Citiroc[1].Common.DiscriminatorMask = qdMask1
 	plan.HV = buildHVPlan(hvVoltage, hvCurrent, coefficients, feedbackEnable != 0, feedbackCoefficient)

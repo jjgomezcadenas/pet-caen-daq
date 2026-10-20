@@ -60,7 +60,7 @@ High-priority frontend gaps after the current milestones are:
 |---|---|---|---|
 | `HV_Vbias` | Base detector bias; global default with a value per board. | Board, 20–85 V. | **Complete for configuration.** Range stepper, four effective board values, inheritance/editor, native HV plan. |
 | `HV_Imax` | HV current trip limit. | Board, current with units. | **Complete for configuration.** Four-board editor and native HV plan; frontend has a lower bound but JANUS provides no explicit upper bound. |
-| `HV_Adjust_Range` | Selects the per-channel DAC full scale. | Global combo: 4.5, 2.5, DISABLED. | **Complete.** Select and Citiroc/HV translation. |
+| `HV_Adjust_Range` | Selects the per-channel DAC full scale. | Global combo: 4.5, 2.5, DISABLED. | **Complete.** Select and Citiroc/HV translation; the DAC reference reaches the chip through the `CitirocConfig` register (see below). |
 | `HV_IndivAdj` | Per-channel DAC trim. | Channel, integer 0–255. | **Complete for configuration.** 4 x 64 editor and exact Citiroc channel setting; main row reports non-zero exception counts. |
 | `Vnom` | Read-only estimated channel voltage, calculated from board bias, trim range, and `HV_IndivAdj`. | Channel monitor. | **Complete.** The 4 x 64 adjustment editor shows each effective nominal voltage and updates it immediately as bias/range/trim values change. |
 | `TempSensType` | Chooses detector temperature conversion. | Global combo: TMP37, LM94021_G11, LM94021_G00 (JANUS also describes generic coefficients). | **Complete.** Known sensors are suggested and a custom `c0 c1 c2` polynomial is accepted and translated to the HV plan. |
@@ -135,7 +135,7 @@ High-priority frontend gaps after the current milestones are:
 
 | Parameter | JANUS control and effect | Scope/range/options | pet-caen-daq status |
 |---|---|---|---|
-| `FastShaperInput` | Chooses HG or LG preamplifier for the fast shaper. | Global: HG-PA, LG-PA. | **Complete.** |
+| `FastShaperInput` | Chooses HG or LG preamplifier for the fast shaper. | Global: HG-PA, LG-PA. | **Complete.** Written through the `CitirocConfig` register (see below). |
 | `TD_CoarseThreshold` | Common timing discriminator threshold for a board; global default plus board exceptions. | Board integer 0–2047. | **Complete.** Four values are visible and editable with inheritance/range enforcement. |
 | `TD_FineThreshold` | Individual timing discriminator trim. | Channel integer 0–15. | **Complete.** 4 x 64 editor, non-zero counts, exact channel programming. |
 | `Hit_HoldOff` | Imposes discriminator dead time. | Global time. | **Complete in backend.** Frontend lacks a specific maximum/step derived from hardware. |
@@ -279,3 +279,32 @@ part of the operator-facing JANUS GUI and affect acquisition or analysis.
 - `ProbeChannel1` is documented as 32–63 by JANUS 5.0, but the production sample
   contains `0`. Current backend validation rejects that value only when probe 1
   is active; the sample and frontend constraint should be corrected.
+
+## Citiroc mode register
+
+With automatic ASIC configuration the FPGA firmware builds each Citiroc
+slow-control stream from board registers. The chip modes come from
+`CitirocConfig` (`0x01000108`). FERSlib `Configure5202` composes it on every
+configuration (source-confirmed); the backend now does the same in
+`PlanProductionConfiguration` and validates it by readback with the other
+writes. Before this change the register was written only by the threshold
+staircase (`0x00070f20`, restored afterwards), so a data run kept whatever value
+the board already held, and `FastShaperInput` and `HV_Adjust_Range` were
+validated but not applied.
+
+| Register bit | Stream bit | Meaning | Value |
+| -----------: | ---------: | ------- | ----- |
+| 0 | 258 | charge discriminator latched | 1 (FERSlib default `EnableQdiscrLatch`) |
+| 5 | 309 | peak sensing triggered externally | 1 (fixed in FERSlib) |
+| 7 | 328 | fast shaper on the low-gain preamplifier | `FastShaperInput` |
+| 8 | 330 | input DAC reference 4.5 V | `HV_Adjust_Range` 4.5 or DISABLED |
+| 9 | 1133 | OTA forced on | 1 (fixed) |
+| 10 | 1141 | negative trigger polarity | 1 (fixed) |
+| 11 | 1143 | channel triggers enabled | 1 (FERSlib default `EnableChannelTrgout`) |
+| 16, 17, 18 | FPGA only | global trigger, validation, repeated charge reset | 1 (fixed) |
+
+The register-bit to stream-bit correspondence is source-confirmed from the
+FERSlib register comments; the resulting stream is inferred until a hardware
+readback confirms it. The planned Citiroc stream stored in HDF5 now carries the
+same bits as the register.
+
